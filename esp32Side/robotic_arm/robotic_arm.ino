@@ -19,7 +19,7 @@ void setup() {
 
   delay(500);
 
-
+  //calibrates every single servo at startup to 90 deg
   for (int i = 0; i < NUM_SERVOS; i++) {
     setServoAngle(servoPins[i], currentAngle[i]);
   }
@@ -81,3 +81,5 @@ void setServoAngle(uint8_t channel, int angle) {
   int pulse = map(angle, 0, 180, SERVO_MIN, SERVO_MAX);
   pwm.setPWM(channel, 0, pulse);
 }
+
+

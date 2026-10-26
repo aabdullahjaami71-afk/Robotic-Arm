@@ -3,6 +3,7 @@ from tkinter import filedialog
 import arm_control
 import json
 from ik import open_ik_library
+from build import open_build_instructions
 
 BGcolor = "darkred"
 
@@ -11,22 +12,55 @@ poll_job = None
 
 window = Tk()
 window.geometry("700x500")
+window.minsize(560, 460)
 window.title("RoboArm")
 window.configure(bg=BGcolor)
 
 joints = ["Gripper", "Wrist", "Shoulder", "Elbow", "Base"]
 
-slider_frame = Frame(window, bg=BGcolor)
-slider_frame.place(x=20, y=20, width=250, height=460)
+
+window.rowconfigure(0, weight=1)
+window.columnconfigure(0, weight=3)
+window.columnconfigure(1, weight=2)
+window.columnconfigure(2, weight=2)
+
+left = Frame(window, bg=BGcolor)
+left.grid(row=0, column=0, sticky="nsew", padx=(20, 10), pady=20)
+left.rowconfigure(0, weight=1)
+left.columnconfigure(0, weight=1)
+
+middle = Frame(window, bg=BGcolor)
+middle.grid(row=0, column=1, sticky="nsew", padx=10, pady=20)
+middle.columnconfigure(0, weight=1)
+for r in range(6):
+    middle.rowconfigure(r, weight=1, uniform="buttons")
+middle.rowconfigure(6, weight=2)
+
+right = Frame(window, bg=BGcolor)
+right.grid(row=0, column=2, sticky="nsew", padx=(10, 20), pady=20)
+right.columnconfigure(0, weight=1)
+
+slider_frame = Frame(left, bg=BGcolor)
+slider_frame.grid(row=0, column=0, sticky="nsew")
+slider_frame.columnconfigure(0, weight=1)
 
 sliders = {}
 recorded = []
 
 
+flipped_joints = {"Elbow"}
+
+
+#mechanically, the elbow joint is flipped so we need this to fix it
+def apply_flips(angles):
+    return [180 - a if joint in flipped_joints else a
+            for joint, a in zip(joints, angles)]
+
+
 def send(angles):
     if simulation_mode:
         return "simulation_mode"
-    return arm_control.send_angles(angles)
+    return arm_control.send_angles(apply_flips(angles))
 
 
 def set_angles():
@@ -38,30 +72,35 @@ def set_angles():
     status_label.config(text=f"ESP32: {response}" if response else "No response")
 
 
-for joint in joints:
-    label = Label(slider_frame, text=joint, bg=BGcolor, fg="pink", font=("Arial", 11, "bold"))
-    label.pack(pady=(10, 0))
+for i, joint in enumerate(joints):
+    slider_frame.rowconfigure(i, weight=1)
+    block = Frame(slider_frame, bg=BGcolor)
+    block.grid(row=i, column=0, sticky="ew")
+
+    label = Label(block, text=joint, bg=BGcolor, fg="pink", font=("Arial", 11, "bold"))
+    label.pack()
 
     slider = Scale(
-        slider_frame,
+        block,
         from_=0,
         to=180,
         orient=HORIZONTAL,
-        length=200,
         bg="red",
         fg="pink",
         troughcolor="black",
         highlightthickness=0,
     )
     slider.set(90)
-    slider.pack()
+    slider.pack(fill=X)   # stretches with the window
     sliders[joint] = slider
 
 
 status_label = Label(
-    window, text="Ready", bg=BGcolor, fg="pink",
-    font=("Arial", 10), wraplength=170, justify=LEFT, anchor="nw",
+    middle, text="Ready", bg=BGcolor, fg="pink",
+    font=("Arial", 10), wraplength=150, justify=LEFT, anchor="nw",
 )
+
+status_label.bind("<Configure>", lambda e: status_label.config(wraplength=max(e.width - 6, 50)))
 
 
 def record_pose():
@@ -157,23 +196,40 @@ def open_IKLibrary():
     open_ik_library(window, send_angles=send, is_simulation=lambda: simulation_mode)
 
 
-set_angles_button = Button(window, text="Drive Servos", command=set_angles, font=("Arial", 12, "bold"), state=DISABLED)
-play_button = Button(window, text="Play Recording", command=play_poses, state=DISABLED)
-mode_button = Button(window, text="I don't have a RoboArm!", command=toggle_mode)
+def open_buildInstructions():
+    open_build_instructions(window)
 
+
+set_angles_button = Button(middle, text="Drive Servos", command=set_angles, font=("Arial", 12, "bold"), state=DISABLED)
+play_button = Button(middle, text="Play Recording", command=play_poses, state=DISABLED)
+mode_button = Button(middle, text="I don't have a RoboArm!", command=toggle_mode)
+
+
+#left
+#Button(left, text="Build Instructions", command=open_buildInstructions).grid(
+   # row=1, column=0, sticky="ew", pady=(10, 0), ipady=6)
 
 #middle
-set_angles_button.place(x=300, y=20, width=180, height=40)
-Button(window, text="Record Position", command=record_pose).place(x=300, y=80, width=180, height=35)
-play_button.place(x=300, y=125, width=180, height=35)
-Button(window, text="Save", command=save_poses).place(x=300, y=170, width=85, height=35)
-Button(window, text="Load", command=load_poses).place(x=395, y=170, width=85, height=35)
-Button(window, text="Clear", command=clear_poses).place(x=300, y=215, width=180, height=35)
-mode_button.place(x=300, y=260, width=180, height=35)
-status_label.place(x=300, y=305, width=180, height=55)
+PAD = dict(sticky="nsew", pady=4)
+set_angles_button.grid(row=0, column=0, **PAD)
+Button(middle, text="Record Position", command=record_pose).grid(row=1, column=0, **PAD)
+play_button.grid(row=2, column=0, **PAD)
+
+save_load = Frame(middle, bg=BGcolor)
+save_load.grid(row=3, column=0, **PAD)
+save_load.rowconfigure(0, weight=1)
+save_load.columnconfigure(0, weight=1)
+save_load.columnconfigure(1, weight=1)
+Button(save_load, text="Save", command=save_poses).grid(row=0, column=0, sticky="nsew", padx=(0, 4))
+Button(save_load, text="Load", command=load_poses).grid(row=0, column=1, sticky="nsew", padx=(4, 0))
+
+Button(middle, text="Clear", command=clear_poses).grid(row=4, column=0, **PAD)
+mode_button.grid(row=5, column=0, **PAD)
+status_label.grid(row=6, column=0, sticky="nsew", pady=(8, 0))
 
 #right
-Button(window, text="Open IK Library", command=open_IKLibrary).place(x=510, y=20, width=170, height=40)
+Button(right, text="Open IK Library", command=open_IKLibrary).grid(
+    row=0, column=0, sticky="ew", ipady=10)
 
 window.after(100, try_connect)
-window.mainloop() 
+window.mainloop()
